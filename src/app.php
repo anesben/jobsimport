@@ -3,38 +3,58 @@
 /************************************
 Entry point of the project.
 To be run from the command line.
-************************************/
+ ************************************/
+namespace App;
 
-define('SQL_HOST', 'mariadb');
-define('SQL_USER', 'root');
-define('SQL_PWD', 'root');
-define('SQL_DB', 'cmc_db');
+use App\Controller\JobController;
+use Exception; 
+
 define('RESSOURCES_DIR', __DIR__ . '/../resources/');
 
+// replace __autoload depecrated with spl_autoload.
+spl_autoload_register(function (string $classname) {
+    $classname = str_replace("\\", "/", $classname);
+    require_once (__DIR__ . '/' . $classname . '.php');
+});
 
-function __autoload(string $classname) {
-    include_once(__DIR__ . '/' . $classname . '.php');
+class App
+{
+    private $controllers;
+
+    public function __construct()
+    {
+        $this->controllers["jobs"] = new JobController();
+    }
+
+    public function start()
+    {
+        echo sprintf("Starting...\n");
+
+        /* import jobs from all files on ../resources to database */
+        try
+        {
+            $count = $this->controllers["jobs"]->import(RESSOURCES_DIR);
+            echo sprintf("> %d jobs imported.\n", $count);
+
+            /* list all jobs */
+            $jobs = $this->controllers["jobs"]->fetch();
+            echo sprintf("> all jobs (%d):\n", count($jobs));
+            foreach ($jobs as $job) {
+                echo sprintf(" %d: %s - %s - %s\n", $job['id'],
+                    $job['reference'], $job['title'], $job['publication']);
+            }
+            echo sprintf("Done.\n");
+        } catch (Exception $e) {
+            echo sprintf("Error: %s\n", $e->getMessage());
+        }
+    }
 }
 
-
-echo sprintf("Starting...\n");
-
-
-/* import jobs from regionsjob.xml */
-$jobsImporter = new JobsImporter(SQL_HOST, SQL_USER, SQL_PWD, SQL_DB, RESSOURCES_DIR . 'regionsjob.xml');
-$count = $jobsImporter->importJobs();
-
-echo sprintf("> %d jobs imported.\n", $count);
-
-
-/* list jobs */
-$jobsLister = new JobsLister(SQL_HOST, SQL_USER, SQL_PWD, SQL_DB);
-$jobs = $jobsLister->listJobs();
-
-echo sprintf("> all jobs (%d):\n", count($jobs));
-foreach ($jobs as $job) {
-    echo sprintf(" %d: %s - %s - %s\n", $job['id'], $job['reference'], $job['title'], $job['publication']);
+// lauching app.
+$app = new App();
+try
+{
+    $app->start();
+} catch (Exception $e) {
+    echo sprintf("Error: %s\n", $e->getMessage());
 }
-
-
-echo sprintf("Done.\n");
